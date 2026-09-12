@@ -591,6 +591,20 @@ typedef struct {
     double elevation;                 /**< grid cell elevation (m) */
     double lat;                       /**< grid cell central latitude */
     double lng;                       /**< grid cell central longitude */
+
+    /*
+     * Externally supplied groundwater coupling state.
+     *
+     * gw_head_offset_m is hydraulic-head offset relative to the
+     * fixed VIC soil-base interface, using the same convention as
+     * VIC_GW_HEAD_OFFSET_M.
+     *
+     * gw_head_offset_valid is true when a spatial coupling value
+     * has been supplied for this VIC grid cell.
+     */
+    double gw_head_offset_m;
+    bool   gw_head_offset_valid;
+
     double cell_area;                 /**< Area of grid cell (m^2) */
     double time_zone_lng;             /**< central meridian of the time zone */
     unsigned int gridcel;             /**< grid cell number */
@@ -799,6 +813,9 @@ typedef struct {
     // Fluxes
     double pot_evap;                   /**< potential evaporation (mm) */
     double baseflow;                   /**< baseflow from current cell (mm/TS) */
+    double gw_exchange;                /**< signed soil-groundwater exchange (mm/TS);
+                                             positive = soil to groundwater,
+                                             negative = groundwater to soil */
     double runoff;                     /**< runoff from current cell (mm/TS) */
     double inflow;                     /**< moisture that reaches the top of
                                           the soil column (mm) */

@@ -100,6 +100,13 @@ void compute_derived_lake_dimensions(lake_var_struct *, lake_con_struct);
 void compute_pot_evap(size_t, double, double, double, double, double, double,
                       double, double, double, double *, char, double, double,
                       double, double *);
+double calc_groundwater_exchange(const soil_con_struct *, size_t,
+                                 double, double, double, double, double,
+                                 double, size_t);
+
+double calc_groundwater_exchange_head(const soil_con_struct *, size_t,
+                                      double, double, double, double,
+                                      double, double, double, size_t);
 void compute_runoff_and_asat(soil_con_struct *, double *, double, double *,
                              double *);
 double calc_Q12(double, double, double, double, double);
