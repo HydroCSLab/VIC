@@ -90,7 +90,7 @@ short_version = '{1}'
 # -------------------------------------------------------------------- #
 def maybe_eval_between_brackets(s):
     '''run eval on strings between brackets e.g. [20 + 3] becomes [23]'''
-    matches = re.findall("\[(.*?)\]", s)
+    matches = re.findall(r"\[(.*?)\]", s)
     for match in matches:
         if match:
             try:
@@ -250,8 +250,6 @@ includes.append(os.path.join(vic_root_abs_path, 'vic',
                              'drivers', 'python', 'include', ''))
 
 ext_name = 'vic_core'
-# platform safe path to extension
-ext_obj = ext_name + sysconfig.get_config_var('SO')
 ext_module = Extension(ext_name,
                        sources=sources,
                        include_dirs=includes,
