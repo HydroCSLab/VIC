@@ -422,6 +422,19 @@ vic_init(void)
         soil_con[i].lng = local_domain.locations[i].longitude;
     }
 
+    {
+        const char *gw_head_file;
+        size_t      nloaded;
+
+        gw_head_file = getenv("VIC_GW_HEAD_FILE");
+        if (gw_head_file != NULL && gw_head_file[0] != '\0') {
+            nloaded = read_groundwater_head_file(
+                gw_head_file, soil_con, local_domain.ncells_active);
+            log_info("Loaded spatial groundwater heads for %zu local VIC "
+                     "cells from %s.", nloaded, gw_head_file);
+        }
+    }
+
     // b_infilt
     get_scatter_nc_field_double(&(filenames.params), "infilt",
                                 d2start, d2count, dvar);
