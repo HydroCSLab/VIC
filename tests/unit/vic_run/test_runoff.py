@@ -1,3 +1,6 @@
+import subprocess
+import sys
+
 import pytest
 
 from vic import ffi
@@ -35,6 +38,7 @@ def test_head_exchange_sign_and_equilibrium():
     assert head_exchange(soil, 200.0, -1.4) == pytest.approx(0.0)
     assert head_exchange(soil, 200.0, -2.4) == pytest.approx(1.0)
     assert head_exchange(soil, 200.0, -0.4) == pytest.approx(-1.0)
+    assert head_exchange(soil, 200.0, -2.4, conductivity=0.0) == 0.0
 
 
 def test_head_exchange_scales_with_runoff_substeps():
@@ -83,8 +87,32 @@ def test_head_and_depth_formulations_are_equivalent():
     assert depth_exchange == pytest.approx(head_exchange_value)
 
 
-def test_head_exchange_rejects_invalid_exchange_length():
-    soil = make_soil()
+@pytest.mark.parametrize("calculation, message", [
+    ("head_exchange(soil, float('nan'), -2.4)", "Invalid head-based"),
+    ("head_exchange(soil, 200.0, -2.4, exchange_length=0.0)", "Invalid head-based"),
+    ("head_exchange(soil, 200.0, -2.4, conductivity=float('inf'))", "Invalid head-based"),
+    ("head_exchange(soil, 200.0, -1e308, conductivity=1e308)", "Non-finite head-based"),
+    ("vic_lib.calc_groundwater_exchange(soil, 2, 200, 0, 1, 1, 8, 1, 4)",
+     "Invalid depth-based"),
+    ("vic_lib.calc_groundwater_exchange(soil, 2, 200, 0, 1e308, 1, 1e308, 1, 4)",
+     "Non-finite depth-based"),
+])
+def test_exchange_rejects_invalid_inputs_and_overflow(calculation, message):
+    # VIC's fatal error exits the process, so exercise it outside pytest.
+    result = subprocess.run(
+        [sys.executable, "-c",
+         "import runpy, sys; ns = runpy.run_path(sys.argv[1]); "
+         "ns['soil'] = ns['make_soil'](); exec(sys.argv[2], ns)",
+         __file__, calculation], capture_output=True, text=True)
+    assert result.returncode == 1
+    assert message in result.stderr
 
-    assert head_exchange(
-        soil, 200.0, -2.4, exchange_length=0.0) == pytest.approx(0.0)
+
+def test_lake_coupling_is_rejected_before_model_state_is_used(monkeypatch):
+    monkeypatch.setenv("VIC_GW_FORMULATION", "head")
+    result = subprocess.run(
+        [sys.executable, "-c",
+         "from vic import ffi, lib; lib.options.LAKES = True; "
+         "lib.vic_run(*([ffi.NULL] * 8))"], capture_output=True, text=True)
+    assert result.returncode == 1
+    assert "Groundwater coupling requires LAKES=FALSE" in result.stderr

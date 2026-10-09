@@ -6,6 +6,59 @@
 
 #include <vic_driver_shared_all.h>
 
+typedef struct {
+    double lat;
+    double lng;
+    size_t index;
+} groundwater_head_cell_index;
+
+static int
+compare_groundwater_head_cells(const void *first, const void *second)
+{
+    const groundwater_head_cell_index *a;
+    const groundwater_head_cell_index *b;
+
+    a = (const groundwater_head_cell_index *) first;
+    b = (const groundwater_head_cell_index *) second;
+    if (a->lat < b->lat) {
+        return -1;
+    }
+    if (a->lat > b->lat) {
+        return 1;
+    }
+    if (a->lng < b->lng) {
+        return -1;
+    }
+    if (a->lng > b->lng) {
+        return 1;
+    }
+    return 0;
+}
+
+static size_t
+lower_bound_groundwater_latitude(const groundwater_head_cell_index *cells,
+                                 size_t ncells, double latitude,
+                                 double coordinate_tolerance)
+{
+    size_t lower;
+    size_t upper;
+
+    lower = 0;
+    upper = ncells;
+    while (lower < upper) {
+        size_t middle;
+
+        middle = lower + (upper - lower) / 2;
+        if (latitude - cells[middle].lat > coordinate_tolerance) {
+            lower = middle + 1;
+        }
+        else {
+            upper = middle;
+        }
+    }
+    return lower;
+}
+
 /******************************************************************************
  * @brief Read a whitespace-delimited latitude, longitude, head-offset file.
  *
@@ -24,12 +77,31 @@ read_groundwater_head_file(const char      *path,
     size_t       line_number;
     size_t       nloaded;
     size_t       i;
+    groundwater_head_cell_index *cell_index;
 
     if (path == NULL || path[0] == '\0') {
         log_err("VIC_GW_HEAD_FILE must name a readable file.");
     }
     if (soil_con == NULL && ncells > 0) {
         log_err("Cannot load groundwater heads into a null soil array.");
+    }
+
+    cell_index = malloc(ncells * sizeof(*cell_index));
+    if (cell_index == NULL && ncells > 0) {
+        log_err("Unable to allocate groundwater-head coordinate index for "
+                "%zu VIC cells.", ncells);
+    }
+    for (i = 0; i < ncells; i++) {
+        if (!isfinite(soil_con[i].lat) || !isfinite(soil_con[i].lng)) {
+            log_err("Non-finite coordinates for local VIC cell %zu.", i);
+        }
+        cell_index[i].lat = soil_con[i].lat;
+        cell_index[i].lng = soil_con[i].lng;
+        cell_index[i].index = i;
+    }
+    if (ncells > 1) {
+        qsort(cell_index, ncells, sizeof(*cell_index),
+              compare_groundwater_head_cells);
     }
 
     stream = fopen(path, "r");
@@ -75,17 +147,25 @@ read_groundwater_head_file(const char      *path,
         }
 
         matches = 0;
-        for (i = 0; i < ncells; i++) {
-            if (fabs(soil_con[i].lat - latitude) <= coordinate_tolerance &&
-                fabs(soil_con[i].lng - longitude) <= coordinate_tolerance) {
-                if (soil_con[i].gw_head_offset_valid) {
+        /* Compare differences directly to preserve the original tolerance. */
+        i = lower_bound_groundwater_latitude(
+            cell_index, ncells, latitude, coordinate_tolerance);
+        for (; i < ncells &&
+             cell_index[i].lat - latitude <= coordinate_tolerance; i++) {
+            size_t local_index;
+
+            local_index = cell_index[i].index;
+            if (fabs(cell_index[i].lat - latitude) <= coordinate_tolerance &&
+                fabs(cell_index[i].lng - longitude) <= coordinate_tolerance) {
+                if (soil_con[local_index].gw_head_offset_valid) {
                     log_err("Duplicate groundwater head for VIC cell "
                             "lat=%.12f lon=%.12f at %s:%zu.",
-                            soil_con[i].lat, soil_con[i].lng, path,
+                            soil_con[local_index].lat,
+                            soil_con[local_index].lng, path,
                             line_number);
                 }
-                soil_con[i].gw_head_offset_m = head_offset_m;
-                soil_con[i].gw_head_offset_valid = true;
+                soil_con[local_index].gw_head_offset_m = head_offset_m;
+                soil_con[local_index].gw_head_offset_valid = true;
                 matches++;
                 nloaded++;
             }
@@ -101,6 +181,7 @@ read_groundwater_head_file(const char      *path,
         log_err("Error while reading VIC_GW_HEAD_FILE: %s", path);
     }
     fclose(stream);
+    free(cell_index);
 
     for (i = 0; i < ncells; i++) {
         if (!soil_con[i].gw_head_offset_valid) {

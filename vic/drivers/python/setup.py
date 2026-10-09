@@ -120,9 +120,7 @@ def make_cffi_headers():
                  'IceEnergyBalance',
                  'root_brent',
                  'SnowPackEnergyBalance',
-                 'soil_thermal_eqn',
-                 'zwtvmoist_zwt',
-                 'zwtvmoist_moist']
+                 'soil_thermal_eqn']
 
     args = [os.environ.get('CC') or 'gcc', '-std=c99', '-E',
             '-P', os.path.join(vic_root_abs_path, 'vic', 'drivers',

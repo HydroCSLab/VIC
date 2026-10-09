@@ -26,6 +26,12 @@ valid_exchange_inputs(const soil_con_struct *soil_con,
            isfinite(ice_moist_mm) &&
            isfinite(conductivity_mm_day) &&
            isfinite(max_drain_fraction) &&
+           isfinite(soil_con->depth[lindex]) &&
+           isfinite(soil_con->max_moist[lindex]) &&
+           isfinite(soil_con->bubble[lindex]) &&
+           isfinite(soil_con->expt[lindex]) &&
+           isfinite(soil_con->resid_moist[lindex]) &&
+           isfinite(liquid_moist_mm + ice_moist_mm) &&
            soil_con->depth[lindex] > 0.0 &&
            soil_con->max_moist[lindex] > 0.0 &&
            soil_con->bubble[lindex] > 0.0 &&
@@ -123,7 +129,8 @@ calc_groundwater_exchange(const soil_con_struct *soil_con,
         !isfinite(groundwater_depth_m) ||
         !isfinite(hydraulic_reference_depth_m) ||
         groundwater_depth_m <= hydraulic_reference_depth_m + eps) {
-        return 0.0;
+        log_err("Invalid depth-based groundwater-exchange inputs at layer %zu.",
+                lindex);
     }
 
     pressure_head_m =
@@ -136,7 +143,8 @@ calc_groundwater_exchange(const soil_con_struct *soil_con,
     exchange_mm = exchange_mm_day / (double) runoff_steps_per_day;
 
     if (!isfinite(exchange_mm)) {
-        return 0.0;
+        log_err("Non-finite depth-based groundwater exchange at layer %zu.",
+                lindex);
     }
 
     return limit_downward_exchange(
@@ -178,7 +186,8 @@ calc_groundwater_exchange_head(const soil_con_struct *soil_con,
         !isfinite(groundwater_head_m) ||
         !isfinite(exchange_length_m) ||
         exchange_length_m <= eps) {
-        return 0.0;
+        log_err("Invalid head-based groundwater-exchange inputs at layer %zu.",
+                lindex);
     }
 
     pressure_head_m =
@@ -190,7 +199,8 @@ calc_groundwater_exchange_head(const soil_con_struct *soil_con,
     exchange_mm = exchange_mm_day / (double) runoff_steps_per_day;
 
     if (!isfinite(exchange_mm)) {
-        return 0.0;
+        log_err("Non-finite head-based groundwater exchange at layer %zu.",
+                lindex);
     }
 
     return limit_downward_exchange(
