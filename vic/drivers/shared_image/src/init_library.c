@@ -24,6 +24,10 @@ initialize_soil_con(soil_con_struct *soil_con)
     soil_con->elevation = 0.;
     soil_con->lat = 0.;
     soil_con->lng = 0.;
+
+    soil_con->gw_head_offset_m = 0.;
+    soil_con->gw_head_offset_valid = false;
+
     soil_con->time_zone_lng = 0.;
 
     soil_con->annual_prec = 0.;

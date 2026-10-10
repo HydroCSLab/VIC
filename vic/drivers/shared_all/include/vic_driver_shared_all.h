@@ -266,6 +266,9 @@ enum
     // Timing and Profiling Terms
     OUT_TIME_VICRUN_WALL, /**< Wall time spent inside vic_run [seconds] */
     OUT_TIME_VICRUN_CPU,  /**< Wall time spent inside vic_run [seconds] */
+    OUT_GW_EXCHANGE,      /**< signed soil-groundwater exchange [mm];
+                                positive = soil to groundwater,
+                                negative = groundwater to soil */
     // Last value of enum - DO NOT ADD ANYTHING BELOW THIS LINE!!
     // used as a loop counter and must be >= the largest value in this enum
     N_OUTVAR_TYPES        /**< used as a loop counter*/
@@ -638,6 +641,7 @@ bool leap_year(unsigned short int year, unsigned short int calendar);
 all_vars_struct make_all_vars(size_t nveg);
 cell_data_struct **make_cell_data(size_t veg_type_num);
 dmy_struct *make_dmy(global_param_struct *global);
+size_t read_groundwater_head_file(const char *, soil_con_struct *, size_t);
 energy_bal_struct **make_energy_bal(size_t nveg);
 void make_lastday(unsigned short int calendar, unsigned short int year,
                   unsigned short int lastday[]);

@@ -10,7 +10,8 @@ from ._vic import ffi
 def _load_lib(lib):
     import os
     import sysconfig
-    suffix = sysconfig.get_config_var('SO')
+    suffix = (sysconfig.get_config_var('EXT_SUFFIX') or
+              sysconfig.get_config_var('SO'))
     path = os.path.join(os.path.dirname(__file__), os.pardir,
                         '{0}{1}'.format(lib, suffix))
 

@@ -45,6 +45,9 @@ read_soilparam(FILE            *soilparam,
     size_t                   k;
     size_t                   Nnodes;
 
+    temp->gw_head_offset_m = 0.0;
+    temp->gw_head_offset_valid = false;
+
     /** Read plain ASCII soil parameter file **/
     if ((fscanf(soilparam, "%d", &flag)) != EOF) {
         if (flag) {

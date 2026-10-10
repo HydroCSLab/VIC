@@ -9,6 +9,12 @@
 
 #include <vic_def.h>
 
+#ifdef _MAIN_
+#define GLOBAL
+#else
+#define GLOBAL extern
+#endif
+
 void advect_carbon_storage(double, double, lake_var_struct *,
                            cell_data_struct *);
 void advect_snow_storage(double, double, double, snow_data_struct *);
@@ -94,6 +100,13 @@ void compute_derived_lake_dimensions(lake_var_struct *, lake_con_struct);
 void compute_pot_evap(size_t, double, double, double, double, double, double,
                       double, double, double, double *, char, double, double,
                       double, double *);
+double calc_groundwater_exchange(const soil_con_struct *, size_t,
+                                 double, double, double, double, double,
+                                 double, size_t);
+
+double calc_groundwater_exchange_head(const soil_con_struct *, size_t,
+                                      double, double, double, double,
+                                      double, double, double, size_t);
 void compute_runoff_and_asat(soil_con_struct *, double *, double, double *,
                              double *);
 double calc_Q12(double, double, double, double, double);
@@ -154,7 +167,7 @@ double func_atmos_energy_bal(double, va_list);
 double func_atmos_moist_bal(double, va_list);
 double func_canopy_energy_bal(double, va_list);
 double func_surf_energy_bal(double, va_list);
-double (*funcd)(double z, double es, double Wind, double AirDens, double ZO,
+GLOBAL double (*funcd)(double z, double es, double Wind, double AirDens, double ZO,
                 double EactAir, double F, double hsalt, double phi_r,
                 double ushear,
                 double Zrh);

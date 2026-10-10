@@ -25,3 +25,21 @@ def test_make_dmy():
             assert dmy[i].month == 1
             assert dmy[i].day == i + 1
             assert dmy[i].dayseconds == 0
+
+
+def test_make_dmy_allows_opt_in_partial_day(monkeypatch):
+    monkeypatch.setenv("VIC_ALLOW_PARTIAL_DAY", "1")
+    vic_lib.global_param.model_steps_per_day = 24
+    vic_lib.global_param.dt = 3600
+    vic_lib.global_param.startsec = 0
+    vic_lib.global_param.startday = 1
+    vic_lib.global_param.startmonth = 1
+    vic_lib.global_param.startyear = 2015
+    vic_lib.global_param.nrecs = 6
+    vic_lib.global_param.calendar = vic_lib.CALENDAR_STANDARD
+
+    dmy = vic_lib.make_dmy(ffi.addressof(vic_lib.global_param))
+
+    assert dmy is not None
+    assert [dmy[i].dayseconds for i in range(6)] == [
+        0, 3600, 7200, 10800, 14400, 18000]
