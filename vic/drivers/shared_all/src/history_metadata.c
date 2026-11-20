@@ -296,6 +296,15 @@ set_output_met_data_info()
     strcpy(out_metadata[OUT_BASEFLOW].description,
            "baseflow out of the bottom layer");
 
+    /* signed soil-groundwater exchange [mm] */
+    strcpy(out_metadata[OUT_GW_EXCHANGE].varname, "OUT_GW_EXCHANGE");
+    strcpy(out_metadata[OUT_GW_EXCHANGE].long_name, "gw_exchange");
+    strcpy(out_metadata[OUT_GW_EXCHANGE].standard_name,
+           "soil_groundwater_exchange_amount");
+    strcpy(out_metadata[OUT_GW_EXCHANGE].units, "mm");
+    strcpy(out_metadata[OUT_GW_EXCHANGE].description,
+           "signed soil-groundwater exchange; positive soil to groundwater, negative groundwater to soil");
+
     /* change in canopy interception storage [mm] */
     strcpy(out_metadata[OUT_DELINTERCEPT].varname, "OUT_DELINTERCEPT");
     strcpy(out_metadata[OUT_DELINTERCEPT].long_name, "delintercept");

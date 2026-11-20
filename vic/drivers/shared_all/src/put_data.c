@@ -514,7 +514,8 @@ put_data(all_vars_struct   *all_vars,
     ********************/
     inflow = out_data[OUT_PREC][0] + out_data[OUT_LAKE_CHAN_IN][0];  // mm over grid cell
     outflow = out_data[OUT_EVAP][0] + out_data[OUT_RUNOFF][0] +
-              out_data[OUT_BASEFLOW][0];  // mm over grid cell
+              out_data[OUT_BASEFLOW][0] +
+              out_data[OUT_GW_EXCHANGE][0];  // signed mm over grid cell
     storage = 0.;
     for (index = 0; index < options.Nlayer; index++) {
         storage += out_data[OUT_SOIL_LIQ][index] +
@@ -631,6 +632,14 @@ collect_wb_terms(cell_data_struct cell,
 
     /** record baseflow **/
     out_data[OUT_BASEFLOW][0] += cell.baseflow * AreaFactor;
+
+    /**
+     * Record signed soil-groundwater exchange.
+     *
+     * Positive values are water leaving VIC for groundwater.
+     * Negative values are groundwater entering the VIC soil column.
+     */
+    out_data[OUT_GW_EXCHANGE][0] += cell.gw_exchange * AreaFactor;
 
     /** record inflow **/
     out_data[OUT_INFLOW][0] += (cell.inflow) * AreaFactor;

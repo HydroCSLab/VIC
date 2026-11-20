@@ -248,6 +248,7 @@ get_default_outvar_aggtype(unsigned int varid)
         break;
     // AGG_TYPE_SUM
     case OUT_BASEFLOW:
+    case OUT_GW_EXCHANGE:
     case OUT_DELINTERCEPT:
     case OUT_DELSOILMOIST:
     case OUT_DELSWE:

@@ -22,6 +22,7 @@ make_dmy(global_param_struct *global)
     unsigned int            offset;
     double                  dt_time_units, start_num, end_num, force_num,
                             numdate;
+    const char              *allow_partial_day;
 
     start_dmy.dayseconds = global->startsec;
     start_dmy.year = global->startyear;
@@ -55,11 +56,15 @@ make_dmy(global_param_struct *global)
         offset =
             (unsigned int) ((double) (SEC_PER_DAY -
                                       start_dmy.dayseconds) / global->dt);
+        allow_partial_day = getenv("VIC_ALLOW_PARTIAL_DAY");
         if ((((unsigned int) global->dt *
               (global->nrecs - offset)) % SEC_PER_DAY) !=
-            0) {
+            0 &&
+            (allow_partial_day == NULL || strcmp(allow_partial_day, "1") != 0)) {
             log_err("Nrecs must be defined such that the model ends after "
-                    "completing a full day.  Currently Nrecs is set to %zu.",
+                    "completing a full day.  Currently Nrecs is set to %zu. "
+                    "Set VIC_ALLOW_PARTIAL_DAY=1 to permit an explicitly "
+                    "bounded subdaily coupling run.",
                     global->nrecs);
         }
     }

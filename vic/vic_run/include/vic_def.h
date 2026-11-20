@@ -53,7 +53,7 @@
 #define MIN_SNOW_WETFRAC 0.01  /**< Minimum fraction of snow depth to be considered wet */
 
 /***** Define minimum and maximum values for model timesteps *****/
-#define MIN_SUBDAILY_STEPS_PER_DAY  4
+#define MIN_SUBDAILY_STEPS_PER_DAY  1
 #define MAX_SUBDAILY_STEPS_PER_DAY  1440
 
 #ifndef WET
@@ -69,11 +69,17 @@
 #define min(a, b) (a < b) ? a : b
 #define max(a, b) (a > b) ? a : b
 
+#ifdef _MAIN_
+#define GLOBAL
+#else
+#define GLOBAL extern
+#endif
+
 extern size_t NR;       /**< array index for force struct that indicates
                              the model step avarage or sum */
 extern size_t NF;       /**< array index loop counter limit for force
                              struct that indicates the SNOW_STEP values */
-char          vic_run_ref_str[MAXSTRING];
+GLOBAL char          vic_run_ref_str[MAXSTRING];
 
 /******************************************************************************
  * @brief   Snow Density parametrizations
@@ -585,6 +591,20 @@ typedef struct {
     double elevation;                 /**< grid cell elevation (m) */
     double lat;                       /**< grid cell central latitude */
     double lng;                       /**< grid cell central longitude */
+
+    /*
+     * Externally supplied groundwater coupling state.
+     *
+     * gw_head_offset_m is hydraulic-head offset relative to the
+     * fixed VIC soil-base interface, using the same convention as
+     * VIC_GW_HEAD_OFFSET_M.
+     *
+     * gw_head_offset_valid is true when a spatial coupling value
+     * has been supplied for this VIC grid cell.
+     */
+    double gw_head_offset_m;
+    bool   gw_head_offset_valid;
+
     double cell_area;                 /**< Area of grid cell (m^2) */
     double time_zone_lng;             /**< central meridian of the time zone */
     unsigned int gridcel;             /**< grid cell number */
@@ -793,6 +813,9 @@ typedef struct {
     // Fluxes
     double pot_evap;                   /**< potential evaporation (mm) */
     double baseflow;                   /**< baseflow from current cell (mm/TS) */
+    double gw_exchange;                /**< signed soil-groundwater exchange (mm/TS);
+                                             positive = soil to groundwater,
+                                             negative = groundwater to soil */
     double runoff;                     /**< runoff from current cell (mm/TS) */
     double inflow;                     /**< moisture that reaches the top of
                                           the soil column (mm) */

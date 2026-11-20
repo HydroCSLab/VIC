@@ -5,7 +5,32 @@
 * between all soil layers, and generates baseflow from the bottom layer.
 ******************************************************************************/
 
+#include <errno.h>
+
 #include <vic_run.h>
+
+static double
+get_environment_double(const char *name,
+                       double      default_value)
+{
+    const char *text;
+    char       *end;
+    double      value;
+
+    text = getenv(name);
+    if (text == NULL || text[0] == '\0') {
+        return default_value;
+    }
+
+    errno = 0;
+    value = strtod(text, &end);
+    if (errno != 0 || end == text || *end != '\0' || !isfinite(value)) {
+        log_err("%s must be a finite numeric value; received '%s'.", name,
+                text);
+    }
+
+    return value;
+}
 
 /******************************************************************************
 * @brief    Calculate infiltration and runoff from the surface, gravity driven
@@ -51,7 +76,23 @@ runoff(cell_data_struct  *cell,
     double                     runoff[MAX_FROST_AREAS];
     double                     tmp_dt_runoff[MAX_FROST_AREAS];
     double                     baseflow[MAX_FROST_AREAS];
+    double                     gw_exchange[MAX_FROST_AREAS];
     double                     dt_baseflow;
+    double                     dt_gw_exchange;
+    const char                *gw_env;
+    const char                *gw_formulation;
+    const char                *gw_head_env;
+    const char                *gw_length_env;
+    bool                       gw_enabled;
+    bool                       gw_head_formulation;
+    double                     gw_test_gap_m = 1.0;
+    double                     gw_test_ka_scale = 1.0;
+    double                     gw_max_drain_fraction = 0.01;
+    double                     soil_column_depth_m = 0.0;
+    double                     gw_test_wtd_m = 0.0;
+    double                     gw_reference_depth_m = 0.0;
+    double                     gw_external_head_m = 0.0;
+    double                     gw_exchange_length_m = 0.0;
     double                     rel_moist;
     double                     evap[MAX_LAYERS][MAX_FROST_AREAS];
     double                     sum_liq;
@@ -72,8 +113,98 @@ runoff(cell_data_struct  *cell,
     /** Allocate and Set Values for Soil Sublayers **/
     layer = cell->layer;
 
+    gw_formulation = getenv("VIC_GW_FORMULATION");
+    gw_enabled = gw_formulation != NULL && gw_formulation[0] != '\0';
+    gw_head_formulation = false;
+
+    if (gw_enabled) {
+        if (strcmp(gw_formulation, "head") == 0) {
+            gw_head_formulation = true;
+        }
+        else if (strcmp(gw_formulation, "scheidegger") != 0) {
+            log_err("VIC_GW_FORMULATION must be 'scheidegger' or 'head'.");
+        }
+
+        gw_test_gap_m = get_environment_double("VIC_GW_TEST_GAP_M", 1.0);
+        gw_test_ka_scale =
+            get_environment_double("VIC_GW_TEST_KA_SCALE", 1.0);
+        gw_max_drain_fraction =
+            get_environment_double("VIC_GW_MAX_DRAIN_FRACTION", 0.01);
+
+        if (gw_test_gap_m <= 0.0) {
+            log_err("VIC_GW_TEST_GAP_M must be greater than zero.");
+        }
+        if (gw_test_ka_scale <= 0.0) {
+            log_err("VIC_GW_TEST_KA_SCALE must be greater than zero.");
+        }
+        if (gw_max_drain_fraction <= 0.0 ||
+            gw_max_drain_fraction > 1.0) {
+            log_err("VIC_GW_MAX_DRAIN_FRACTION must be in (0, 1].");
+        }
+
+        for (lindex = 0; lindex < options.Nlayer; lindex++) {
+            soil_column_depth_m += soil_con->depth[lindex];
+        }
+        gw_test_wtd_m = soil_column_depth_m + gw_test_gap_m;
+        gw_reference_depth_m = soil_column_depth_m;
+
+        gw_env = getenv("VIC_GW_REFERENCE_DEPTH");
+        if (gw_env != NULL && strcmp(gw_env, "base") != 0) {
+            if (strcmp(gw_env, "node") == 0) {
+                gw_reference_depth_m =
+                    soil_column_depth_m -
+                    0.5 * soil_con->depth[options.Nlayer - 1];
+            }
+            else {
+                log_err("VIC_GW_REFERENCE_DEPTH must be 'base' or 'node'.");
+            }
+        }
+
+        if (gw_head_formulation) {
+            gw_head_env = getenv("VIC_GW_HEAD_OFFSET_M");
+            gw_length_env = getenv("VIC_GW_EXCHANGE_LENGTH_M");
+
+            if (soil_con->gw_head_offset_valid) {
+                if (gw_head_env != NULL) {
+                    log_err("Do not specify both VIC_GW_HEAD_FILE and "
+                            "VIC_GW_HEAD_OFFSET_M.");
+                }
+                if (gw_length_env == NULL) {
+                    log_err("VIC_GW_EXCHANGE_LENGTH_M is required with "
+                            "VIC_GW_HEAD_FILE.");
+                }
+                gw_external_head_m =
+                    -soil_column_depth_m + soil_con->gw_head_offset_m;
+                gw_exchange_length_m = get_environment_double(
+                    "VIC_GW_EXCHANGE_LENGTH_M", 0.0);
+            }
+            else if (gw_head_env == NULL && gw_length_env == NULL) {
+                gw_external_head_m = -gw_test_wtd_m;
+                gw_exchange_length_m =
+                    gw_test_wtd_m - gw_reference_depth_m;
+            }
+            else if (gw_head_env == NULL || gw_length_env == NULL) {
+                log_err("VIC_GW_HEAD_OFFSET_M and VIC_GW_EXCHANGE_LENGTH_M "
+                        "must be specified together.");
+            }
+            else {
+                gw_external_head_m = -soil_column_depth_m +
+                                     get_environment_double(
+                                         "VIC_GW_HEAD_OFFSET_M", 0.0);
+                gw_exchange_length_m = get_environment_double(
+                    "VIC_GW_EXCHANGE_LENGTH_M", 0.0);
+            }
+
+            if (gw_exchange_length_m <= 0.0) {
+                log_err("VIC_GW_EXCHANGE_LENGTH_M must be greater than zero.");
+            }
+        }
+    }
+
+
     cell->runoff = 0;
     cell->baseflow = 0;
+    cell->gw_exchange = 0;
     cell->asat = 0;
 
     runoff_steps_per_dt = global_param.runoff_steps_per_day /
@@ -81,6 +212,7 @@ runoff(cell_data_struct  *cell,
 
     for (fidx = 0; fidx < (int)options.Nfrost; fidx++) {
         baseflow[fidx] = 0;
+        gw_exchange[fidx] = 0;
     }
 
     for (lindex = 0; lindex < options.Nlayer; lindex++) {
@@ -270,47 +402,69 @@ runoff(cell_data_struct  *cell,
                Compute Baseflow
             **************************************************/
 
-            /** ARNO model for the bottom soil layer (based on bottom
-                soil layer moisture from previous time step) **/
-
             lindex = options.Nlayer - 1;
+            dt_baseflow = 0.0;
+            dt_gw_exchange = 0.0;
 
-            /** Compute relative moisture **/
-            rel_moist =
-                (liq[lindex] -
-                 resid_moist[lindex]) /
-                (max_moist[lindex] - resid_moist[lindex]);
+            /*
+             * Coupled groundwater replaces VIC's conceptual baseflow
+             * boundary. Uncoupled runs retain the standard ARNO closure.
+             */
+            if (!gw_enabled) {
+                rel_moist =
+                    (liq[lindex] - resid_moist[lindex]) /
+                    (max_moist[lindex] - resid_moist[lindex]);
 
-            /** Compute baseflow as function of relative moisture **/
-            frac = Dsmax * soil_con->Ds / soil_con->Ws;
-            dt_baseflow = frac * rel_moist;
-            if (rel_moist > soil_con->Ws) {
-                frac = (rel_moist - soil_con->Ws) / (1 - soil_con->Ws);
-                dt_baseflow += Dsmax * (1 - soil_con->Ds / soil_con->Ws) * pow(
-                    frac, soil_con->c);
+                frac = Dsmax * soil_con->Ds / soil_con->Ws;
+                dt_baseflow = frac * rel_moist;
+                if (rel_moist > soil_con->Ws) {
+                    frac = (rel_moist - soil_con->Ws) /
+                           (1 - soil_con->Ws);
+                    dt_baseflow +=
+                        Dsmax * (1 - soil_con->Ds / soil_con->Ws) *
+                        pow(frac, soil_con->c);
+                }
+                if (dt_baseflow < 0) {
+                    dt_baseflow = 0;
+                }
             }
-
-            /** Make sure baseflow isn't negative **/
-            if (dt_baseflow < 0) {
-                dt_baseflow = 0;
-            }
-
-            /** Extract baseflow from the bottom soil layer **/
 
             liq[lindex] +=
-                Q12[lindex - 1] - (evap[lindex][fidx] + dt_baseflow);
+                Q12[lindex - 1] -
+                (evap[lindex][fidx] + dt_baseflow);
 
-            /** Check Lower Sub-Layer Moistures **/
             tmp_moist = 0;
 
-            /* If soil moisture has gone below minimum, take water out
-             * of baseflow and add back to soil to make up the difference
-             * Note: this may lead to negative baseflow, in which case we will
-             * reduce evap to make up for it */
             if ((liq[lindex] + ice[lindex]) < resid_moist[lindex]) {
                 dt_baseflow +=
                     (liq[lindex] + ice[lindex]) - resid_moist[lindex];
                 liq[lindex] = resid_moist[lindex] - ice[lindex];
+            }
+
+            if (gw_enabled && lindex == options.Nlayer - 1) {
+                if (gw_head_formulation) {
+                    dt_gw_exchange =
+                        calc_groundwater_exchange_head(
+                            soil_con, lindex, liq[lindex], ice[lindex],
+                            gw_reference_depth_m, gw_external_head_m,
+                            gw_exchange_length_m,
+                            soil_con->Ksat[lindex] * gw_test_ka_scale,
+                            gw_max_drain_fraction,
+                            global_param.runoff_steps_per_day);
+                }
+                else {
+                    dt_gw_exchange =
+                        calc_groundwater_exchange(
+                            soil_con, lindex, liq[lindex], ice[lindex],
+                            gw_test_wtd_m, gw_reference_depth_m,
+                            soil_con->Ksat[lindex] * gw_test_ka_scale,
+                            gw_max_drain_fraction,
+                            global_param.runoff_steps_per_day);
+                }
+
+                /* Positive exchange removes water from the VIC soil column. */
+                liq[lindex] -= dt_gw_exchange;
+                gw_exchange[fidx] += dt_gw_exchange;
             }
 
             if ((liq[lindex] + ice[lindex]) > max_moist[lindex]) {
@@ -366,6 +520,8 @@ runoff(cell_data_struct  *cell,
         cell->asat += A * frost_fract[fidx];
         cell->runoff += runoff[fidx] * frost_fract[fidx];
         cell->baseflow += baseflow[fidx] * frost_fract[fidx];
+        cell->gw_exchange +=
+            gw_exchange[fidx] * frost_fract[fidx];
     }
 
     /** Compute water table depth **/

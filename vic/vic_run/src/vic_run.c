@@ -72,6 +72,13 @@ vic_run(force_data_struct   *force,
     veg_var_struct          *veg_var;
     energy_bal_struct       *energy;
     snow_data_struct        *snow;
+    const char              *gw_formulation;
+
+    gw_formulation = getenv("VIC_GW_FORMULATION");
+    if (options.LAKES && gw_formulation != NULL && gw_formulation[0] != '\0') {
+        log_err("Groundwater coupling requires LAKES=FALSE; lake/wetland "
+                "area-change accounting is not supported.");
+    }
 
     out_prec = calloc(options.SNOW_BAND, sizeof(*out_prec));
     check_alloc_status(out_prec, "Memory allocation error.");
